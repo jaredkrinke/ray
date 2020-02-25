@@ -64,7 +64,7 @@ const palette = [
 
 const textures: ImageData[] = [];
 
-class Entity {
+class Player {
     private cosRs: number;
     private sinRs: number;
     public px: number;
@@ -89,6 +89,13 @@ class Entity {
     }
 }
 
+interface Sprite {
+    x: number;
+    y: number;
+    texture: number;
+    distance?: number;
+}
+
 class Game extends React.Component {
     private canvas = React.createRef<HTMLCanvasElement>();
     private timer: number | null = null;
@@ -96,7 +103,10 @@ class Game extends React.Component {
     private screenImage: ImageData;
     private screen: Uint8ClampedArray;
 
-    private player = new Entity(3, 3, -1, 0, 3 / fps, 0);
+    private player = new Player(3, 3, -1, 0, 3 / fps, 0);
+    private sprites: Sprite[] = [
+        { x: 4, y: 4, texture: 1 },
+    ];
 
     // Input
     private ku = false;
@@ -147,6 +157,7 @@ class Game extends React.Component {
         const td = texture.data;
         let n = (y * width + x) * 4;
         let tn = (ty * tw + tx) * 4;
+        // TODO: Decide if using real transparency or pink
         this.screen[n++] = td[tn++];
         this.screen[n++] = td[tn++];
         this.screen[n++] = td[tn++];
@@ -164,7 +175,9 @@ class Game extends React.Component {
     private draw(): void {
         this.clear();
 
+        // Walls (and z-buffer)
         const { x, y, dx, dy, px, py } = this.player;
+        const z: number[] = [];
         for (let column = 0; column < width; column++) {
             const cx = 2 * column / width - 1;
             const rx = dx + px * cx;
@@ -241,6 +254,42 @@ class Game extends React.Component {
                 const ty = Math.min(th - 1, Math.round(tp));
                 tp += step;
                 this.setFromImage(column, i, texture, tx, ty);
+            }
+
+            z.push(pwd);
+        }
+
+        // Sprites
+        this.sprites.forEach(s => { s.distance = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y); })
+        this.sprites.sort((a, b) => (a.distance - b.distance));
+        for (const sprite of this.sprites) {
+            const spx = sprite.x - x;
+            const spy = sprite.y - y;
+            const d = 1 / (px * dy - dx * py);
+            const trx = d * (dy * spx - dx * spy);
+            const trY = d * (-py * spx + px * spy);
+            const spsx = Math.floor(width / 2 * (1 + trx / trY));
+
+            const sph = Math.abs(Math.floor(height / trY));
+            const spy1 = Math.max(0, Math.floor(-sph / 2 + height / 2));
+            const spy2 = Math.min(height - 1, Math.floor(sph / 2 + height / 2));
+
+            const spw = Math.abs(Math.floor(height / trY));
+            const spx1 = Math.max(0, Math.floor(-spw / 2 + spsx));
+            const spx2 = Math.min(width - 1, Math.floor(spw / 2 + spsx));
+
+            const texture = textures[sprite.texture];
+            const sptw = texture.width;
+            const spth = texture.height;
+
+            for (let i = spx1; i < spx2; i++) {
+                const sptx = Math.floor((i - (-spw / 2 + spsx)) * sptw / spw);
+                if (trY > 0 && i > 0 && i < width && trY < z[i]) {
+                    for (let j = spy1; j < spy2; j++) {
+                        const spty = Math.min(spth - 1, Math.round((j - height / 2 + sph / 2) * spth / sph));
+                        this.setFromImage(i, j, texture, sptx, spty);
+                    }
+                }
             }
         }
 
