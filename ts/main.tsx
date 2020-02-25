@@ -9,7 +9,7 @@ const map = [
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
-    [1, 0, 0, 2, 2, 1, 1, 1, 0, 0, 0, 1],
+    [1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -62,7 +62,8 @@ const palette = [
     [254, 254, 254],
 ];
 
-const textures: ImageData[] = [];
+const wallTextures: ImageData[] = [];
+const spriteTextures: ImageData[] = [];
 
 class Player {
     private cosRs: number;
@@ -105,7 +106,7 @@ class Game extends React.Component {
 
     private player = new Player(3, 3, -1, 0, 3 / fps, 0);
     private sprites: Sprite[] = [
-        { x: 4, y: 4, texture: 1 },
+        { x: 4, y: 4, texture: 0 },
     ];
 
     // Input
@@ -155,12 +156,14 @@ class Game extends React.Component {
     private setFromImage(x: number, y: number, texture: ImageData, tx: number, ty: number) {
         const tw = texture.width;
         const td = texture.data;
-        let n = (y * width + x) * 4;
         let tn = (ty * tw + tx) * 4;
         // TODO: Decide if using real transparency or pink
-        this.screen[n++] = td[tn++];
-        this.screen[n++] = td[tn++];
-        this.screen[n++] = td[tn++];
+        if (td[tn + 3] !== 0) {
+            let n = (y * width + x) * 4;
+            this.screen[n++] = td[tn++];
+            this.screen[n++] = td[tn++];
+            this.screen[n++] = td[tn++];
+        }
     }
 
     private set(x: number, y: number, c: number) {
@@ -237,7 +240,7 @@ class Game extends React.Component {
             const y1 = Math.max(0, Math.floor(-lh / 2 + height / 2));
             const y2 = Math.min(height - 1, Math.floor(lh / 2 + height / 2))
 
-            const texture = textures[(map[my][mx] - 1) * 2 + (ns ? 1 : 0)];
+            const texture = wallTextures[(map[my][mx] - 1) * 2 + (ns ? 1 : 0)];
             let wx = ns ? (x + pwd * rx) : (y + pwd * ry);
             wx -= Math.floor(wx);
 
@@ -278,7 +281,7 @@ class Game extends React.Component {
             const spx1 = Math.max(0, Math.floor(-spw / 2 + spsx));
             const spx2 = Math.min(width - 1, Math.floor(spw / 2 + spsx));
 
-            const texture = textures[sprite.texture];
+            const texture = spriteTextures[sprite.texture];
             const sptw = texture.width;
             const spth = texture.height;
 
@@ -319,35 +322,6 @@ class Game extends React.Component {
         }
     }
 
-    private createTextures(): void {
-        const checker = this.rc.createImageData(32, 32);
-        for (let i = 0; i < checker.width; i++) {
-            for (let j = 0; j < checker.height; j++) {
-                const c = (Math.floor(i / 16) ^ Math.floor(j / 16)) ? Color.white : Color.lightGray;
-                this.setInImage(checker, i ,j, c);
-            }
-        }
-        textures.push(checker);
-
-        const checker2 = this.rc.createImageData(32, 32);
-        for (let i = 0; i < checker2.width; i++) {
-            for (let j = 0; j < checker2.height; j++) {
-                const c = (Math.floor(i / 16) ^ Math.floor(j / 16)) ? Color.lightGray : Color.darkGray;
-                this.setInImage(checker2, i ,j, c);
-            }
-        }
-        textures.push(checker2);
-
-        const noise = this.rc.createImageData(32, 32);
-        for (let i = 0; i < width; i++) {
-            for (let j = 0; j < height; j++) {
-                const c = Math.floor(Math.random() * palette.length);
-                this.setInImage(noise, i, j, c);
-            }
-        }
-        textures.push(noise);
-    }
-
     public componentWillUnmount(): void {
         if (this.timer !== null) {
             clearInterval(this.timer);
@@ -369,8 +343,6 @@ class Game extends React.Component {
             }
         }
 
-        this.createTextures();
-
         this.timer = setInterval(() => this.tick(), 1000 / fps);
     }
 
@@ -379,17 +351,12 @@ class Game extends React.Component {
     }
 }
 
-async function loadTexturesAsync(): Promise<void> {
-    const textureFiles = [
-        "img/wall_lab.png",
-        "img/wall_lab2.png",
-    ];
-
+async function loadTexturesIntoArrayAsync(array: ImageData[], files: string[]): Promise<void> {
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
 
     // TODO: Error handling
-    const imageDatas = await Promise.all(textureFiles.map(file => (new Promise((resolve: (imageData: ImageData) => void) => {
+    const imageDatas = await Promise.all(files.map(file => (new Promise((resolve: (imageData: ImageData) => void) => {
         const image = new Image();
         image.src = file;
         image.onload = () => {
@@ -401,8 +368,20 @@ async function loadTexturesAsync(): Promise<void> {
     }))));
 
     for (const imageData of imageDatas) {
-        textures.push(imageData);
+        array.push(imageData);
     }
+}
+
+async function loadTexturesAsync(): Promise<void> {
+    await Promise.all([
+        loadTexturesIntoArrayAsync(wallTextures, [
+            "img/wall_lab.png",
+            "img/wall_lab2.png",
+        ]),
+        loadTexturesIntoArrayAsync(spriteTextures, [
+            "img/jumper.png",
+        ]),
+    ]);
 }
 
 async function init() {
