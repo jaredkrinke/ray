@@ -97,11 +97,12 @@ interface Sprite {
     distance?: number;
 }
 
-class Game extends React.Component {
+class Game extends React.Component<{ scale: number }> {
     private canvas = React.createRef<HTMLCanvasElement>();
     private timer: number | null = null;
     private rc: CanvasRenderingContext2D;
     private screenImage: ImageData;
+    private scaledScreenImage: ImageData;
     private screen: Uint8ClampedArray;
 
     private player = new Player(2, 2, -1, 0, 3 / fps, 0);
@@ -135,12 +136,14 @@ class Game extends React.Component {
     }
 
     private clear(): void {
+        const rgb = palette[Color.darkGray];
         for (let i = 0; i < width; i++) {
             for (let j = 0; j < height; j++) {
                 let n = (j * width + i) * bpp;
-                this.screen[n++] = 0;
-                this.screen[n++] = 0;
-                this.screen[n++] = 0;
+                let b = 0;
+                this.screen[n++] = rgb[b++];
+                this.screen[n++] = rgb[b++];
+                this.screen[n++] = rgb[b++];
             }
         }
     }
@@ -174,6 +177,35 @@ class Game extends React.Component {
         this.screen[n++] = rgb[i++];
         this.screen[n++] = rgb[i++];
         this.screen[n++] = rgb[i++];
+    }
+
+    private scaleAndPaint() {
+        const scaled = this.scaledScreenImage;
+        const scaledData = scaled.data;
+        const screen = this.screen;
+        const scale = this.props.scale;
+        let scaledIndex = 0;
+        let screenIndex = 0;
+        for (let i = 0; i < height; i++) {
+            const lineStart = scaledIndex;
+            for (let j = 0; j < width; j++) {
+                for (let s = 0; s < scale; s++) {
+                    scaledData[scaledIndex++] = screen[screenIndex];
+                    scaledData[scaledIndex++] = screen[screenIndex + 1];
+                    scaledData[scaledIndex++] = screen[screenIndex + 2];
+                    scaledIndex++;
+                }
+                screenIndex += 4;
+            }
+
+            for (let s = 1; s < scale; s++) {
+                const end = scaledIndex + scaled.width * 4;
+                scaledData.copyWithin(scaledIndex, lineStart, end);
+                scaledIndex = end;
+            }
+        }
+
+        this.rc.putImageData(scaled, 0, 0);
     }
 
     private draw(): void {
@@ -287,7 +319,7 @@ class Game extends React.Component {
             const spth = texture.height;
 
             for (let i = spx1; i < spx2; i++) {
-                const sptx = Math.floor((i - (-spw / 2 + spsx)) * sptw / spw);
+                const sptx = Math.max(0, Math.floor((i - (-spw / 2 + spsx)) * sptw / spw));
                 if (trY > 0 && i > 0 && i < width && trY < z[i]) {
                     for (let j = spy1; j < spy2; j++) {
                         const spty = Math.min(spth - 1, Math.round((j - height / 2 + sph / 2) * spth / sph));
@@ -297,7 +329,7 @@ class Game extends React.Component {
             }
         }
 
-        this.rc.putImageData(this.screenImage, 0, 0);
+        this.scaleAndPaint();
     }
 
     private tick(): void {
@@ -307,19 +339,32 @@ class Game extends React.Component {
 
     private keyDown(event: React.KeyboardEvent): void {
         switch (event.key) {
-            case "ArrowUp": this.ku = true; break;
-            case "ArrowDown": this.kd = true; break;
-            case "ArrowLeft": this.kl = true; break;
-            case "ArrowRight": this.kr = true; break;
+            case "ArrowUp": this.ku = true; event.preventDefault(); break;
+            case "ArrowDown": this.kd = true; event.preventDefault(); break;
+            case "ArrowLeft": this.kl = true; event.preventDefault(); break;
+            case "ArrowRight": this.kr = true; event.preventDefault(); break;
         }
     }
 
     private keyUp(event: React.KeyboardEvent): void {
         switch (event.key) {
-            case "ArrowUp": this.ku = false; break;
-            case "ArrowDown": this.kd = false; break;
-            case "ArrowLeft": this.kl = false; break;
-            case "ArrowRight": this.kr = false; break;
+            case "ArrowUp": this.ku = false; event.preventDefault(); break;
+            case "ArrowDown": this.kd = false; event.preventDefault(); break;
+            case "ArrowLeft": this.kl = false; event.preventDefault(); break;
+            case "ArrowRight": this.kr = false; event.preventDefault(); break;
+        }
+    }
+
+    private clearImageData(image: ImageData): void {
+        const data = image.data;
+        for (let i = 0; i < image.width; i++) {
+            for (let j = 0; j < image.height; j++) {
+                let n = (j * image.width + i) * bpp;
+                data[n++] = 0;
+                data[n++] = 0;
+                data[n++] = 0;
+                data[n++] = 255;
+            }
         }
     }
 
@@ -331,24 +376,20 @@ class Game extends React.Component {
     }
 
     public componentDidMount(): void {
-        this.rc = this.canvas.current.getContext("2d");
+        const canvas = this.canvas.current;
+        this.rc = canvas.getContext("2d");
         this.screenImage = this.rc.createImageData(width, height);
         this.screen = this.screenImage.data;
-        for (let i = 0; i < width; i++) {
-            for (let j = 0; j < height; j++) {
-                let n = (j * width + i) * bpp;
-                this.screen[n++] = 0;
-                this.screen[n++] = 0;
-                this.screen[n++] = 0;
-                this.screen[n++] = 255;
-            }
-        }
+        this.clearImageData(this.screenImage);
+
+        this.scaledScreenImage = this.rc.createImageData(canvas.width, canvas.height);
+        this.clearImageData(this.scaledScreenImage);
 
         this.timer = setInterval(() => this.tick(), 1000 / fps);
     }
 
     public render() {
-        return <canvas ref={this.canvas} tabIndex={1} onKeyDown={(event) => this.keyDown(event)} onKeyUp={(event) => this.keyUp(event)} width={320} height={240}></canvas>;
+        return <canvas ref={this.canvas} width={width * this.props.scale} height={height * this.props.scale} tabIndex={1} onKeyDown={(event) => this.keyDown(event)} onKeyUp={(event) => this.keyUp(event)}></canvas>;
     }
 }
 
@@ -388,7 +429,7 @@ async function loadTexturesAsync(): Promise<void> {
 
 async function init() {
     await loadTexturesAsync();
-    ReactDOM.render(<Game />, document.getElementById("root"));
+    ReactDOM.render(<Game scale={3} />, document.getElementById("root"));
 }
 
 init();
