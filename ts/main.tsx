@@ -9,7 +9,7 @@ const map = [
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
-    [1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1],
+    [1, 0, 0, 2, 2, 1, 1, 1, 0, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -224,7 +224,7 @@ class Game extends React.Component {
             const y1 = Math.max(0, Math.floor(-lh / 2 + height / 2));
             const y2 = Math.min(height - 1, Math.floor(lh / 2 + height / 2))
 
-            const texture = textures[map[my][mx] - 1];
+            const texture = textures[(map[my][mx] - 1) * 2 + (ns ? 1 : 0)];
             let wx = ns ? (x + pwd * rx) : (y + pwd * ry);
             wx -= Math.floor(wx);
 
@@ -274,11 +274,20 @@ class Game extends React.Component {
         const checker = this.rc.createImageData(32, 32);
         for (let i = 0; i < checker.width; i++) {
             for (let j = 0; j < checker.height; j++) {
-                const c = (Math.floor(i / 16) ^ Math.floor(j / 16)) ? Color.white : Color.darkGray;
+                const c = (Math.floor(i / 16) ^ Math.floor(j / 16)) ? Color.white : Color.lightGray;
                 this.setInImage(checker, i ,j, c);
             }
         }
         textures.push(checker);
+
+        const checker2 = this.rc.createImageData(32, 32);
+        for (let i = 0; i < checker2.width; i++) {
+            for (let j = 0; j < checker2.height; j++) {
+                const c = (Math.floor(i / 16) ^ Math.floor(j / 16)) ? Color.lightGray : Color.darkGray;
+                this.setInImage(checker2, i ,j, c);
+            }
+        }
+        textures.push(checker2);
 
         const noise = this.rc.createImageData(32, 32);
         for (let i = 0; i < width; i++) {
@@ -321,4 +330,35 @@ class Game extends React.Component {
     }
 }
 
-ReactDOM.render(<Game />, document.getElementById("root"));
+async function loadTexturesAsync(): Promise<void> {
+    const textureFiles = [
+        "img/wall_lab.png",
+        "img/wall_lab2.png",
+    ];
+
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    // TODO: Error handling
+    const imageDatas = await Promise.all(textureFiles.map(file => (new Promise((resolve: (imageData: ImageData) => void) => {
+        const image = new Image();
+        image.src = file;
+        image.onload = () => {
+            canvas.width = image.width;
+            canvas.height = image.height;
+            context.drawImage(image, 0, 0);
+            resolve(context.getImageData(0, 0, image.width, image.height));
+        };
+    }))));
+
+    for (const imageData of imageDatas) {
+        textures.push(imageData);
+    }
+}
+
+async function init() {
+    await loadTexturesAsync();
+    ReactDOM.render(<Game />, document.getElementById("root"));
+}
+
+init();
