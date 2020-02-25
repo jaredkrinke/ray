@@ -1,7 +1,7 @@
 declare const React: typeof import("react");
 declare const ReactDOM: typeof import("react-dom");
 
-// Ray-casting and movement algorithms as described here: https://lodev.org/cgtutor/raycasting.html
+// Ray-casting and movement algorithms adapted from: https://lodev.org/cgtutor/raycasting.html
 
 const map = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -61,6 +61,8 @@ const palette = [
     [254, 254, 84],
     [254, 254, 254],
 ];
+
+const textures: ImageData[] = [];
 
 class Entity {
     private cosRs: number;
@@ -129,6 +131,25 @@ class Game extends React.Component {
                 this.screen[n++] = 0;
             }
         }
+    }
+
+    private setInImage(image: ImageData, x: number, y: number, c: number): void {
+        const rgb = palette[c];
+        let i = 0;
+        let n = (y * image.width + x) * 4;
+        image.data[n++] = rgb[i++];
+        image.data[n++] = rgb[i++];
+        image.data[n++] = rgb[i++];
+    }
+
+    private setFromImage(x: number, y: number, texture: ImageData, tx: number, ty: number) {
+        const tw = texture.width;
+        const td = texture.data;
+        let n = (y * width + x) * 4;
+        let tn = (ty * tw + tx) * 4;
+        this.screen[n++] = td[tn++];
+        this.screen[n++] = td[tn++];
+        this.screen[n++] = td[tn++];
     }
 
     private set(x: number, y: number, c: number) {
@@ -200,11 +221,26 @@ class Game extends React.Component {
             }
 
             let lh = Math.floor(height / pwd);
-            let ds = Math.max(0, Math.floor(-lh / 2 + height / 2));
+            const y1 = Math.max(0, Math.floor(-lh / 2 + height / 2));
+            const y2 = Math.min(height - 1, Math.floor(lh / 2 + height / 2))
 
-            const c = ns ? Color.lightGray : Color.darkGray;
-            for (let i = 0; i < lh; i++) {
-                this.set(column, ds + i, c);
+            const texture = textures[map[my][mx] - 1];
+            let wx = ns ? (x + pwd * rx) : (y + pwd * ry);
+            wx -= Math.floor(wx);
+
+            const tw = texture.width;
+            let tx = Math.floor(wx * tw);
+            if ((ns && ry < 0) || (!ns && rx > 0)) {
+                tx = tw - tx - 1;
+            }
+
+            const th = texture.height;
+            const step = th / lh;
+            let tp = (y1 - height / 2 + lh / 2) * step;
+            for (let i = y1; i < y2; i++) {
+                const ty = Math.min(th - 1, Math.round(tp));
+                tp += step;
+                this.setFromImage(column, i, texture, tx, ty);
             }
         }
 
@@ -234,6 +270,26 @@ class Game extends React.Component {
         }
     }
 
+    private createTextures(): void {
+        const checker = this.rc.createImageData(32, 32);
+        for (let i = 0; i < checker.width; i++) {
+            for (let j = 0; j < checker.height; j++) {
+                const c = (Math.floor(i / 16) ^ Math.floor(j / 16)) ? Color.white : Color.darkGray;
+                this.setInImage(checker, i ,j, c);
+            }
+        }
+        textures.push(checker);
+
+        const noise = this.rc.createImageData(32, 32);
+        for (let i = 0; i < width; i++) {
+            for (let j = 0; j < height; j++) {
+                const c = Math.floor(Math.random() * palette.length);
+                this.setInImage(noise, i, j, c);
+            }
+        }
+        textures.push(noise);
+    }
+
     public componentWillUnmount(): void {
         if (this.timer !== null) {
             clearInterval(this.timer);
@@ -254,6 +310,8 @@ class Game extends React.Component {
                 this.screen[n++] = 255;
             }
         }
+
+        this.createTextures();
 
         this.timer = setInterval(() => this.tick(), 1000 / fps);
     }
