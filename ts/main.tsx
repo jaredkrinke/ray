@@ -101,8 +101,10 @@ class Game extends React.Component<{ scale: number }> {
     private canvas = React.createRef<HTMLCanvasElement>();
     private timer: number | null = null;
     private rc: CanvasRenderingContext2D;
-    private screenImage: ImageData;
     private scaledScreenImage: ImageData;
+
+    // TODO: Would column-major for textures and the fixed-size screen be faster overall?
+    private screenImage: ImageData;
     private screen: Uint8ClampedArray;
 
     private player = new Player(2, 2, -1, 0, 3 / fps, 0);
@@ -126,10 +128,10 @@ class Game extends React.Component<{ scale: number }> {
             // TODO: Move into Entity
             const { x, y, dx, dy, speed } = this.player;
             const distance = this.ku ? speed : -speed;
-            if (map[Math.floor(y)][Math.floor(x + dx * distance)] === 0) {
+            if (map[Math.trunc(y)][Math.trunc(x + dx * distance)] === 0) {
                 this.player.x += dx * distance;
             }
-            if (map[Math.floor(y + dy * distance)][Math.floor(x)] === 0) {
+            if (map[Math.trunc(y + dy * distance)][Math.trunc(x)] === 0) {
                 this.player.y += dy * distance;
             }
         }
@@ -219,8 +221,8 @@ class Game extends React.Component<{ scale: number }> {
             const rx = dx + px * cx;
             const ry = dy + py * cx;
 
-            let mx = Math.floor(x);
-            let my = Math.floor(y);
+            let mx = Math.trunc(x);
+            let my = Math.trunc(y);
 
             let sdx: number;
             let sdy: number;
@@ -269,16 +271,16 @@ class Game extends React.Component<{ scale: number }> {
                 pwd = (mx - x + (1 - sx) / 2) / rx;
             }
 
-            let lh = Math.floor(height / pwd);
-            const y1 = Math.max(0, Math.floor(-lh / 2 + height / 2));
-            const y2 = Math.min(height - 1, Math.floor(lh / 2 + height / 2))
+            let lh = Math.trunc(height / pwd);
+            const y1 = Math.max(0, Math.trunc(-lh / 2 + height / 2));
+            const y2 = Math.min(height - 1, Math.trunc(lh / 2 + height / 2))
 
             const texture = wallTextures[(map[my][mx] - 1) * 2 + (ns ? 1 : 0)];
             let wx = ns ? (x + pwd * rx) : (y + pwd * ry);
-            wx -= Math.floor(wx);
+            wx -= Math.trunc(wx);
 
             const tw = texture.width;
-            let tx = Math.floor(wx * tw);
+            let tx = Math.trunc(wx * tw);
             if ((ns && ry < 0) || (!ns && rx > 0)) {
                 tx = tw - tx - 1;
             }
@@ -304,22 +306,22 @@ class Game extends React.Component<{ scale: number }> {
             const d = 1 / (px * dy - dx * py);
             const trx = d * (dy * spx - dx * spy);
             const trY = d * (-py * spx + px * spy);
-            const spsx = Math.floor(width / 2 * (1 + trx / trY));
+            const spsx = Math.trunc(width / 2 * (1 + trx / trY));
 
-            const sph = Math.abs(Math.floor(height / trY));
-            const spy1 = Math.max(0, Math.floor(-sph / 2 + height / 2));
-            const spy2 = Math.min(height - 1, Math.floor(sph / 2 + height / 2));
+            const sph = Math.abs(Math.trunc(height / trY));
+            const spy1 = Math.max(0, Math.trunc(-sph / 2 + height / 2));
+            const spy2 = Math.min(height - 1, Math.trunc(sph / 2 + height / 2));
 
-            const spw = Math.abs(Math.floor(height / trY));
-            const spx1 = Math.max(0, Math.floor(-spw / 2 + spsx));
-            const spx2 = Math.min(width - 1, Math.floor(spw / 2 + spsx));
+            const spw = Math.abs(Math.trunc(height / trY));
+            const spx1 = Math.max(0, Math.trunc(-spw / 2 + spsx));
+            const spx2 = Math.min(width - 1, Math.trunc(spw / 2 + spsx));
 
             const texture = spriteTextures[sprite.texture];
             const sptw = texture.width;
             const spth = texture.height;
 
             for (let i = spx1; i < spx2; i++) {
-                const sptx = Math.max(0, Math.floor((i - (-spw / 2 + spsx)) * sptw / spw));
+                const sptx = Math.max(0, Math.trunc((i - (-spw / 2 + spsx)) * sptw / spw));
                 if (trY > 0 && i > 0 && i < width && trY < z[i]) {
                     for (let j = spy1; j < spy2; j++) {
                         const spty = Math.min(spth - 1, Math.round((j - height / 2 + sph / 2) * spth / sph));
@@ -334,7 +336,7 @@ class Game extends React.Component<{ scale: number }> {
 
     private tick(): void {
         this.update();
-        this.draw();
+        requestAnimationFrame(() => this.draw());
     }
 
     private keyDown(event: React.KeyboardEvent): void {
