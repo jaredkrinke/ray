@@ -18,10 +18,49 @@ const map = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 ];
 
-let width = 320;
-let height = 240;
+const width = 320;
+const height = 240;
 
-const fps = 10;
+const bpp = 4;
+const fps = 15;
+
+enum Color {
+    black = 0,
+    blue,
+    red,
+    purple,
+    darkGray,
+    indigo,
+    brown,
+    green,
+    salmon,
+    aqua,
+    pink,
+    lightGray,
+    lime,
+    cyan,
+    yellow,
+    white,
+}
+
+const palette = [
+    [0, 0, 0],
+    [0, 0, 168],
+    [168, 0, 0],
+    [168, 0, 168],
+    [84, 84, 84],
+    [84, 84, 254],
+    [168, 84, 0],
+    [0, 168, 0],
+    [254, 84, 84],
+    [0, 168, 168],
+    [254, 84, 254],
+    [168, 168, 168],
+    [84, 254, 84],
+    [84, 254, 254],
+    [254, 254, 84],
+    [254, 254, 254],
+];
 
 class Entity {
     private cosRs: number;
@@ -50,8 +89,10 @@ class Entity {
 
 class Game extends React.Component {
     private canvas = React.createRef<HTMLCanvasElement>();
-    private rc: CanvasRenderingContext2D;
     private timer: number | null = null;
+    private rc: CanvasRenderingContext2D;
+    private screenImage: ImageData;
+    private screen: Uint8ClampedArray;
 
     private player = new Entity(3, 3, -1, 0, 3 / fps, 0);
 
@@ -79,9 +120,28 @@ class Game extends React.Component {
         }
     }
 
+    private clear(): void {
+        for (let i = 0; i < width; i++) {
+            for (let j = 0; j < height; j++) {
+                let n = (j * width + i) * bpp;
+                this.screen[n++] = 0;
+                this.screen[n++] = 0;
+                this.screen[n++] = 0;
+            }
+        }
+    }
+
+    private set(x: number, y: number, c: number) {
+        const rgb = palette[c];
+        let i = 0;
+        let n = (y * width + x) * 4;
+        this.screen[n++] = rgb[i++];
+        this.screen[n++] = rgb[i++];
+        this.screen[n++] = rgb[i++];
+    }
+
     private draw(): void {
-        this.rc.fillStyle = "black";
-        this.rc.fillRect(0, 0, width, height);
+        this.clear();
 
         const { x, y, dx, dy, px, py } = this.player;
         for (let column = 0; column < width; column++) {
@@ -140,12 +200,15 @@ class Game extends React.Component {
             }
 
             let lh = Math.floor(height / pwd);
-            let ds = Math.max(0, -lh / 2 + height / 2);
-            let de = Math.min(height - 1, lh / 2 + height / 2);
+            let ds = Math.max(0, Math.floor(-lh / 2 + height / 2));
 
-            this.rc.fillStyle = ns ? "lightgray" : "darkgray";
-            this.rc.fillRect(column, ds, 1, de - ds + 1);
+            const c = ns ? Color.lightGray : Color.darkGray;
+            for (let i = 0; i < lh; i++) {
+                this.set(column, ds + i, c);
+            }
         }
+
+        this.rc.putImageData(this.screenImage, 0, 0);
     }
 
     private tick(): void {
@@ -180,6 +243,18 @@ class Game extends React.Component {
 
     public componentDidMount(): void {
         this.rc = this.canvas.current.getContext("2d");
+        this.screenImage = this.rc.createImageData(width, height);
+        this.screen = this.screenImage.data;
+        for (let i = 0; i < width; i++) {
+            for (let j = 0; j < height; j++) {
+                let n = (j * width + i) * bpp;
+                this.screen[n++] = 0;
+                this.screen[n++] = 0;
+                this.screen[n++] = 0;
+                this.screen[n++] = 255;
+            }
+        }
+
         this.timer = setInterval(() => this.tick(), 1000 / fps);
     }
 
