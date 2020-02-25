@@ -104,9 +104,10 @@ class Game extends React.Component {
     private screenImage: ImageData;
     private screen: Uint8ClampedArray;
 
-    private player = new Player(3, 3, -1, 0, 3 / fps, 0);
+    private player = new Player(2, 2, -1, 0, 3 / fps, 0);
     private sprites: Sprite[] = [
-        { x: 4, y: 4, texture: 0 },
+        { x: 3, y: 3, texture: 0 },
+        { x: 3, y: 4, texture: 1 },
     ];
 
     // Input
@@ -264,7 +265,7 @@ class Game extends React.Component {
 
         // Sprites
         this.sprites.forEach(s => { s.distance = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y); })
-        this.sprites.sort((a, b) => (a.distance - b.distance));
+        this.sprites.sort((a, b) => (b.distance - a.distance));
         for (const sprite of this.sprites) {
             const spx = sprite.x - x;
             const spy = sprite.y - y;
@@ -380,6 +381,7 @@ async function loadTexturesAsync(): Promise<void> {
         ]),
         loadTexturesIntoArrayAsync(spriteTextures, [
             "img/jumper.png",
+            "img/zombie.png",
         ]),
     ]);
 }
